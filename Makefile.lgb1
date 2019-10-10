@@ -1,4 +1,4 @@
-include Makefile.feature.j2
+include Makefile.feature.esb1
 
 N = 10000
 N_LEAF = 128
