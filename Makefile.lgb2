@@ -1,0 +1,65 @@
+include Makefile.feature.j1
+
+N = 10000
+N_LEAF = 64
+LRATE = 0.01
+N_MIN = 25
+SUBCOL = 0.8
+SUBROW = 0.5
+SUBROW_FREQ = 1
+N_STOP = 100
+ALGO_NAME := lgb2
+MODEL_NAME := $(ALGO_NAME)_$(FEATURE_NAME)
+
+LOG_TRN := $(DIR_LOG)/$(MODEL_NAME).log
+METRIC_VAL := $(DIR_METRIC)/$(MODEL_NAME).val.txt
+
+PREDICT_VAL := $(DIR_VAL)/$(MODEL_NAME).val.yht
+PREDICT_TST := $(DIR_TST)/$(MODEL_NAME).tst.yht
+FEATURE_IMP := $(DIR_MODEL)/$(MODEL_NAME).imp.csv
+
+SUBMISSION_TST := $(DIR_SUB)/$(MODEL_NAME).sub.csv
+SUBMISSION_TST_GZ := $(DIR_SUB)/$(MODEL_NAME).sub.csv.gz
+
+all: validation submission
+validation: $(METRIC_VAL)
+submission: $(SUBMISSION_TST)
+retrain: clean_$(ALGO_NAME) submission
+
+$(PREDICT_TST) $(PREDICT_VAL): $(FEATURE_TRN) $(FEATURE_TST) $(FEATURE_MAP) \
+                                   | $(DIR_VAL) $(DIR_TST) $(DIR_LOG) $(DIR_MODEL)
+	python ./src/train_predict_lgb.py --train-file $< \
+                              --test-file $(word 2, $^) \
+							  --feature-map-file $(word 3, $^) \
+                              --predict-valid-file $(PREDICT_VAL) \
+                              --predict-test-file $(PREDICT_TST) \
+                              --feature-importance-file $(FEATURE_IMP) \
+                              --n-est $(N) \
+                              --n-leaf $(N_LEAF) \
+                              --lrate $(LRATE) \
+                              --n-min $(N_MIN) \
+                              --subcol $(SUBCOL) \
+                              --subrow $(SUBROW) \
+                              --subrow-freq $(SUBROW_FREQ) \
+                              --early-stop $(N_STOP) \
+							  --log-file $(LOG_TRN)
+
+$(SUBMISSION_TST_GZ): $(SUBMISSION_TST)
+	gzip $<
+
+$(SUBMISSION_TST): $(HEADER) $(ID_TST) $(PREDICT_TST) | $(DIR_SUB)
+	cat $< <(paste -d, $(word 2, $^) $(lastword $^)) > $@
+
+$(METRIC_VAL): $(PREDICT_VAL) $(Y_TRN) | $(DIR_METRIC)
+	python ./src/evaluate.py --predict-file $< \
+                             --target-file $(lastword $^) > $@
+	cat $@
+
+
+clean:: clean_$(ALGO_NAME)
+
+clean_$(ALGO_NAME):
+	-rm $(METRIC_VAL) $(PREDICT_VAL) $(PREDICT_TST) $(SUBMISSION_TST)
+	find . -name '*.pyc' -delete
+
+.DEFAULT_GOAL := all

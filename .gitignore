@@ -1,0 +1,10 @@
+.DS_Store
+.vscode/
+.ipynb_checkpoints/
+*.pyc
+*.log
+*.so
+input/
+build/
+data/
+__pycache__/
